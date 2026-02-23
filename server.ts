@@ -168,12 +168,30 @@ async function startServer() {
 
     try {
       if (useSupabase && supabase) {
+        console.log("Mencoba menyimpan ke Supabase...");
         const { data, error } = await supabase
           .from('participants')
-          .insert([{ nama_sekolah, nama_peserta, tempat_tanggal_lahir, cabang_lomba, file_url, file_name }])
+          .insert([{ 
+            nama_sekolah, 
+            nama_peserta, 
+            tempat_tanggal_lahir, 
+            cabang_lomba, 
+            file_url, 
+            file_name 
+          }])
           .select();
         
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase Insert Error Detail:", error);
+          return res.status(500).json({ 
+            error: `Gagal menyimpan ke Supabase: ${error.message}. Pastikan tabel 'participants' sudah dibuat melalui SQL Editor.` 
+          });
+        }
+
+        if (!data || data.length === 0) {
+          throw new Error("Data berhasil disimpan tapi tidak mengembalikan ID.");
+        }
+
         res.status(201).json({ id: data[0].id });
       } else if (db) {
         const stmt = db.prepare(`

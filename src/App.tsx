@@ -27,7 +27,8 @@ import {
   Lock,
   LogIn,
   LogOut,
-  Database as DbIcon
+  Database as DbIcon,
+  Link as LinkIcon
 } from 'lucide-react';
 
 type Participant = {
@@ -100,6 +101,7 @@ export default function App() {
   const [schoolFilter, setSchoolFilter] = useState('Semua Sekolah');
   const [editingId, setEditingId] = useState<any>(null);
   const [dbStatus, setDbStatus] = useState<{ provider: string, connected: boolean } | null>(null);
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   const [formData, setFormData] = useState({
     nama_sekolah: '',
@@ -110,11 +112,30 @@ export default function App() {
     file_name: ''
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     fetchParticipants();
     fetchDbStatus();
+
+    const deadline = new Date('2026-03-10T23:00:00+07:00').getTime();
+    
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const distance = deadline - now;
+
+      if (distance < 0) {
+        clearInterval(timer);
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      } else {
+        setTimeLeft({
+          days: Math.floor(distance / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((distance % (1000 * 60)) / 1000)
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, []);
 
   const fetchDbStatus = async () => {
@@ -191,26 +212,6 @@ export default function App() {
     setView('pendaftaran');
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({
-          ...formData,
-          file_url: reader.result as string,
-          file_name: file.name
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeFile = () => {
-    setFormData({ ...formData, file_url: '', file_name: '' });
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Mengirim data pendaftaran...");
@@ -260,7 +261,6 @@ export default function App() {
           file_name: ''
         });
         setEditingId(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
         
         // Refresh data
         await fetchParticipants();
@@ -423,6 +423,28 @@ export default function App() {
   const downloadSQL = () => {
     window.location.href = '/api/export-sql';
   };
+
+  const getUrlType = (url: string) => {
+    if (!url) return null;
+    const cleanUrl = url.split('?')[0];
+    const ext = cleanUrl.split('.').pop()?.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return 'image';
+    if (['mp4', 'webm'].includes(ext || '')) return 'video';
+    if (['mp3', 'wav'].includes(ext || '')) return 'audio';
+    if (ext === 'pdf') return 'pdf';
+    return 'other';
+  };
+
+  const CountdownItem = ({ value, label }: { value: number, label: string }) => (
+    <div className="flex flex-col items-center px-2 md:px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-indigo-100 shadow-sm min-w-[60px] md:min-w-[80px]">
+      <span className="text-xl md:text-2xl font-black text-indigo-900 leading-none">
+        {value.toString().padStart(2, '0')}
+      </span>
+      <span className="text-[8px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-wider mt-1">
+        {label}
+      </span>
+    </div>
+  );
 
   const ParticipantsTable = ({ showCSV = false }: { showCSV?: boolean }) => {
     const schools = ['Semua Sekolah', ...new Set(participants.map(p => p.nama_sekolah))].sort();
@@ -599,9 +621,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
       {/* Marquee Info */}
-      <div className="bg-sky-100 text-rose-600 py-2 overflow-hidden whitespace-nowrap relative border-b border-sky-200">
-        <div className="animate-marquee inline-block font-bold text-xs md:text-sm uppercase tracking-wider">
-          Pendaftaran FLS3N-SD Tahun 2026 Kecamatan Beji dimulai tanggal 1-10 Maret 2026 pukul 23,00 WIB, dan formulir ini akan ditutup secara otomatis pada tanggal 10 Maret 2026 pukul 23.00 WIB.
+      <div className="bg-indigo-900 text-amber-400 py-2.5 overflow-hidden whitespace-nowrap relative border-b border-amber-500/20">
+        <div className="animate-marquee inline-block font-black text-[10px] md:text-xs uppercase tracking-[0.2em]">
+          Pendaftaran FLS3N-SD Tahun 2026 Kecamatan Beji dimulai tanggal 1-10 Maret 2026 pukul 23.00 WIB • Segera daftarkan delegasi sekolah Anda sebelum batas waktu berakhir • 
         </div>
       </div>
 
@@ -620,8 +642,8 @@ export default function App() {
         )}
 
         {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-12">
-          <div className="flex items-center gap-4">
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-12 md:mb-16">
+          <div className="flex items-center gap-5">
             <div 
               onClick={() => { 
                 if (isAdmin) {
@@ -631,37 +653,60 @@ export default function App() {
                   setShowLoginModal(true);
                 }
               }}
-              className="w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 transition-transform cursor-pointer active:scale-95"
+              className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-100 transition-transform cursor-pointer active:scale-95 overflow-hidden border border-indigo-50"
             >
-              <Trophy size={24} className="md:w-7 md:h-7" />
+              <img 
+                src="https://pusatprestasinasional.kemendikdasmen.go.id/uploads/event/cOKxdgS0KQhv9FlzGXeJin7A4hX8T6JaIwK3Evy1.png" 
+                alt="Logo FLS3N" 
+                className="w-full h-full object-contain p-2"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
-              <h1 className="text-xl md:text-3xl font-bold tracking-tight">FLS3N SD 2026</h1>
-              <p className="text-slate-500 font-medium text-[10px] md:text-sm uppercase tracking-widest">Kecamatan Beji</p>
+              <h1 className="text-2xl md:text-4xl font-black text-indigo-950 tracking-tight leading-tight">
+                FLS3N SD <span className="text-amber-500">2026</span>
+              </h1>
+              <p className="text-indigo-400 font-bold text-xs md:text-base uppercase tracking-[0.3em]">Kecamatan Beji</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <>
-                {view !== 'home' && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            {/* Countdown Timer */}
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="hidden md:block text-right mr-2">
+                <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Batas Akhir</p>
+                <p className="text-xs font-bold text-indigo-900">Pendaftaran</p>
+              </div>
+              <div className="flex gap-2">
+                <CountdownItem value={timeLeft.days} label="Hari" />
+                <CountdownItem value={timeLeft.hours} label="Jam" />
+                <CountdownItem value={timeLeft.minutes} label="Menit" />
+                <CountdownItem value={timeLeft.seconds} label="Detik" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <>
+                  {view !== 'home' && (
+                    <button 
+                      onClick={() => { setView('home'); setEditingId(null); }}
+                      className="flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl bg-white border border-indigo-100 text-indigo-600 text-xs md:text-sm font-bold hover:bg-indigo-50 transition-all shadow-sm active:scale-95"
+                    >
+                      <LayoutDashboard size={18} />
+                      <span>Dashboard</span>
+                    </button>
+                  )}
                   <button 
-                    onClick={() => { setView('home'); setEditingId(null); }}
-                    className="flex items-center justify-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs md:text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm active:scale-95"
+                    onClick={handleLogout}
+                    className="flex items-center justify-center gap-2 px-4 md:px-5 py-2.5 md:py-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-xs md:text-sm font-bold hover:bg-rose-100 transition-all shadow-sm active:scale-95"
                   >
-                    <LayoutDashboard size={16} className="md:w-[18px] md:h-[18px]" />
-                    <span className="hidden sm:inline">Dashboard</span>
+                    <LogOut size={18} />
+                    <span>Logout</span>
                   </button>
-                )}
-                <button 
-                  onClick={handleLogout}
-                  className="flex items-center justify-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 text-xs md:text-sm font-semibold hover:bg-rose-100 transition-colors shadow-sm active:scale-95"
-                >
-                  <LogOut size={16} className="md:w-[18px] md:h-[18px]" />
-                  <span>Logout</span>
-                </button>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -882,49 +927,87 @@ export default function App() {
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="space-y-3 p-6 bg-slate-50 rounded-2xl border border-slate-200"
+                      className="space-y-4 p-6 bg-slate-50 rounded-2xl border border-slate-200"
                     >
-                      <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                        <Upload size={16} className="text-indigo-500" />
-                        Upload Berkas Pendukung (MP3, MP4, JPG, PDF)
-                      </label>
-                      <p className="text-xs text-slate-500">Wajib untuk cabang Menyanyi Solo, Pantomim, dan Seni Tari.</p>
-                      
-                      {!formData.file_name ? (
-                        <div 
-                          onClick={() => fileInputRef.current?.click()}
-                          className="border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all cursor-pointer"
-                        >
-                          <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400">
-                            <Upload size={24} />
-                          </div>
-                          <span className="text-sm font-medium text-slate-600">Klik untuk pilih file</span>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <LinkIcon size={16} className="text-indigo-500" />
+                          Link Berkas Pendukung (Google Drive/Lainnya)
+                        </label>
+                        <p className="text-xs text-slate-500">Wajib untuk cabang Menyanyi Solo, Pantomim, dan Seni Tari. Masukkan link file (MP3, MP4, JPG, atau PDF).</p>
+                        
+                        <div className="relative">
                           <input 
-                            type="file" 
-                            ref={fileInputRef}
-                            className="hidden" 
-                            accept=".mp3,.mp4,.jpg,.jpeg,.pdf"
-                            onChange={handleFileChange}
+                            type="url"
+                            placeholder="https://drive.google.com/file/d/..."
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all pr-12"
+                            value={formData.file_url}
+                            onChange={(e) => setFormData({...formData, file_url: e.target.value, file_name: 'Link Berkas'})}
                           />
+                          {formData.file_url && (
+                            <button 
+                              type="button"
+                              onClick={() => setFormData({...formData, file_url: '', file_name: ''})}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-rose-500 transition-all"
+                            >
+                              <X size={18} />
+                            </button>
+                          )}
                         </div>
-                      ) : (
-                        <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                          <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <FileText size={20} />
-                            </div>
-                            <div className="overflow-hidden">
-                              <p className="text-sm font-bold text-slate-900 truncate">{formData.file_name}</p>
-                              <p className="text-[10px] text-slate-400 uppercase font-bold">File Terpilih</p>
+                      </div>
+
+                      {formData.file_url && (
+                        <div className="space-y-3">
+                          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Preview & Link</p>
+                            
+                            <div className="space-y-3">
+                              {/* Preview Logic */}
+                              {getUrlType(formData.file_url) === 'image' && (
+                                <div className="rounded-lg overflow-hidden border border-slate-100 max-h-48 flex justify-center bg-slate-50">
+                                  <img src={formData.file_url} alt="Preview" className="max-w-full object-contain" referrerPolicy="no-referrer" />
+                                </div>
+                              )}
+                              
+                              {getUrlType(formData.file_url) === 'video' && (
+                                <div className="rounded-lg overflow-hidden border border-slate-100 bg-black">
+                                  <video src={formData.file_url} controls className="w-full max-h-48" />
+                                </div>
+                              )}
+
+                              {getUrlType(formData.file_url) === 'audio' && (
+                                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                  <audio src={formData.file_url} controls className="w-full" />
+                                </div>
+                              )}
+
+                              {getUrlType(formData.file_url) === 'pdf' && (
+                                <div className="flex items-center gap-3 p-3 bg-rose-50 rounded-lg border border-rose-100 text-rose-700">
+                                  <FileText size={24} />
+                                  <span className="text-sm font-bold">Dokumen PDF</span>
+                                </div>
+                              )}
+
+                              {getUrlType(formData.file_url) === 'other' && (
+                                <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-indigo-700">
+                                  <LinkIcon size={24} />
+                                  <span className="text-sm font-bold">Link Eksternal / Drive</span>
+                                </div>
+                              )}
+
+                              <div className="pt-2 border-t border-slate-100">
+                                <a 
+                                  href={formData.file_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-indigo-600 hover:underline break-all font-medium flex items-center gap-1"
+                                >
+                                  <LinkIcon size={12} />
+                                  {formData.file_url}
+                                </a>
+                              </div>
                             </div>
                           </div>
-                          <button 
-                            type="button"
-                            onClick={removeFile}
-                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                          >
-                            <X size={20} />
-                          </button>
                         </div>
                       )}
                     </motion.div>
