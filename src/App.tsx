@@ -26,7 +26,8 @@ import {
   FileDown,
   Lock,
   LogIn,
-  LogOut
+  LogOut,
+  Database as DbIcon
 } from 'lucide-react';
 
 type Participant = {
@@ -232,13 +233,21 @@ export default function App() {
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      let result;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        result = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Server returned non-JSON response:", text);
+        throw new Error("Server tidak merespon dengan format yang benar (JSON).");
+      }
 
       if (response.ok) {
         console.log("Pendaftaran berhasil disimpan!");
         setMessage({ 
           type: 'success', 
-          text: editingId ? 'Data berhasil diperbarui!' : 'Pendaftaran berhasil disimpan! Mengalihkan ke halaman rekap...' 
+          text: editingId ? 'Data berhasil diperbarui!' : 'Pendaftaran berhasil disimpan!' 
         });
         
         // Clear form
@@ -266,7 +275,10 @@ export default function App() {
       }
     } catch (error) {
       console.error("Kesalahan koneksi:", error);
-      setMessage({ type: 'error', text: 'Terjadi kesalahan koneksi ke server.' });
+      setMessage({ 
+        type: 'error', 
+        text: error instanceof Error ? error.message : 'Terjadi kesalahan koneksi ke server. Pastikan server backend sedang berjalan.' 
+      });
     } finally {
       setSubmitting(false);
     }
@@ -408,6 +420,10 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  const downloadSQL = () => {
+    window.location.href = '/api/export-sql';
+  };
+
   const ParticipantsTable = ({ showCSV = false }: { showCSV?: boolean }) => {
     const schools = ['Semua Sekolah', ...new Set(participants.map(p => p.nama_sekolah))].sort();
 
@@ -430,13 +446,22 @@ export default function App() {
                 <span>PDF</span>
               </button>
               {showCSV && (
-                <button 
-                  onClick={downloadCSV}
-                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] md:text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
-                >
-                  <FileSpreadsheet size={14} className="md:w-4 md:h-4" />
-                  <span>CSV</span>
-                </button>
+                <>
+                  <button 
+                    onClick={downloadCSV}
+                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] md:text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+                  >
+                    <FileSpreadsheet size={14} className="md:w-4 md:h-4" />
+                    <span>CSV</span>
+                  </button>
+                  <button 
+                    onClick={downloadSQL}
+                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-slate-700 text-white text-[10px] md:text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 active:scale-95"
+                  >
+                    <DbIcon size={14} className="md:w-4 md:h-4" />
+                    <span>SQL</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -981,10 +1006,20 @@ export default function App() {
         </AnimatePresence>
 
         {/* Footer Info */}
-        <footer className="mt-16 pt-8 border-t border-slate-200 text-center">
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">
-            Panitia FLS3N-SD Kecamatan Beji &copy; 2026
-          </p>
+        <footer className="mt-16 pt-8 border-t border-slate-200 text-center space-y-4">
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">
+              Panitia FLS3N-SD Kecamatan Beji &copy; 2026
+            </p>
+            {dbStatus && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
+                <div className={`w-2 h-2 rounded-full ${dbStatus.connected ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {dbStatus.provider}: {dbStatus.connected ? 'Terhubung' : 'Terputus'}
+                </span>
+              </div>
+            )}
+          </div>
         </footer>
       </div>
     </div>

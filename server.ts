@@ -69,6 +69,75 @@ async function startServer() {
     });
   });
 
+  app.get("/api/export-sql", async (req, res) => {
+    try {
+      let sqlDump = "";
+      
+      if (useSupabase && supabase) {
+        const { data, error } = await supabase.from('participants').select('*');
+        if (error) throw error;
+        
+        sqlDump += "-- Supabase Export\n";
+        sqlDump += "CREATE TABLE IF NOT EXISTS participants (\n";
+        sqlDump += "  id SERIAL PRIMARY KEY,\n";
+        sqlDump += "  nama_sekolah TEXT,\n";
+        sqlDump += "  nama_peserta TEXT,\n";
+        sqlDump += "  tempat_tanggal_lahir TEXT,\n";
+        sqlDump += "  cabang_lomba TEXT,\n";
+        sqlDump += "  file_url TEXT,\n";
+        sqlDump += "  file_name TEXT,\n";
+        sqlDump += "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n";
+        sqlDump += ");\n\n";
+
+        if (data && data.length > 0) {
+          data.forEach((row: any) => {
+            const values = [
+              `'${row.nama_sekolah?.replace(/'/g, "''") || ''}'`,
+              `'${row.nama_peserta?.replace(/'/g, "''") || ''}'`,
+              `'${row.tempat_tanggal_lahir?.replace(/'/g, "''") || ''}'`,
+              `'${row.cabang_lomba?.replace(/'/g, "''") || ''}'`,
+              row.file_url ? `'${row.file_url}'` : 'NULL',
+              row.file_name ? `'${row.file_name.replace(/'/g, "''")}'` : 'NULL'
+            ].join(", ");
+            sqlDump += `INSERT INTO participants (nama_sekolah, nama_peserta, tempat_tanggal_lahir, cabang_lomba, file_url, file_name) VALUES (${values});\n`;
+          });
+        }
+      } else if (db) {
+        sqlDump += "-- SQLite Export\n";
+        sqlDump += "CREATE TABLE IF NOT EXISTS participants (\n";
+        sqlDump += "  id INTEGER PRIMARY KEY AUTOINCREMENT,\n";
+        sqlDump += "  nama_sekolah TEXT,\n";
+        sqlDump += "  nama_peserta TEXT,\n";
+        sqlDump += "  tempat_tanggal_lahir TEXT,\n";
+        sqlDump += "  cabang_lomba TEXT,\n";
+        sqlDump += "  file_url TEXT,\n";
+        sqlDump += "  file_name TEXT,\n";
+        sqlDump += "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n";
+        sqlDump += ");\n\n";
+
+        const rows = db.prepare("SELECT * FROM participants").all();
+        rows.forEach((row: any) => {
+          const values = [
+            `'${row.nama_sekolah?.replace(/'/g, "''") || ''}'`,
+            `'${row.nama_peserta?.replace(/'/g, "''") || ''}'`,
+            `'${row.tempat_tanggal_lahir?.replace(/'/g, "''") || ''}'`,
+            `'${row.cabang_lomba?.replace(/'/g, "''") || ''}'`,
+            row.file_url ? `'${row.file_url}'` : 'NULL',
+            row.file_name ? `'${row.file_name.replace(/'/g, "''")}'` : 'NULL'
+          ].join(", ");
+          sqlDump += `INSERT INTO participants (nama_sekolah, nama_peserta, tempat_tanggal_lahir, cabang_lomba, file_url, file_name) VALUES (${values});\n`;
+        });
+      }
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename=database_dump.sql');
+      res.send(sqlDump);
+    } catch (error) {
+      console.error("Export Error:", error);
+      res.status(500).send("Gagal mengekspor database");
+    }
+  });
+
   app.get("/api/participants", async (req, res) => {
     try {
       if (useSupabase && supabase) {
