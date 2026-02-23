@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { 
   UserPlus, 
   Users, 
@@ -89,9 +89,20 @@ const SEKOLAH_LIST = [
 ];
 
 // Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const supabaseClient = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || '';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || '';
+let supabaseClient: SupabaseClient | null = null;
+try {
+  if (supabaseUrl && supabaseAnonKey) {
+    if (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://')) {
+      supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    } else {
+      console.warn("Supabase URL is invalid. It must start with http:// or https://");
+    }
+  }
+} catch (error) {
+  console.error("Failed to initialize Supabase client:", error);
+}
 
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -422,10 +433,10 @@ export default function App() {
     // Table
     const tableData = filteredParticipants.map((p, index) => [
       index + 1,
-      p.nama_sekolah,
-      p.nama_peserta,
-      p.tempat_tanggal_lahir,
-      p.cabang_lomba
+      p?.nama_sekolah || '',
+      p?.nama_peserta || '',
+      p?.tempat_tanggal_lahir || '',
+      p?.cabang_lomba || ''
     ]);
 
     autoTable(doc, {
@@ -486,10 +497,10 @@ export default function App() {
 
   const downloadCSV = () => {
     const dataToExport = filteredParticipants.map((p) => ({
-      'Nama Sekolah': p.nama_sekolah,
-      'Nama Peserta': p.nama_peserta,
-      'Tempat Tgl Lahir': p.tempat_tanggal_lahir,
-      'Cabang Lomba': p.cabang_lomba
+      'Nama Sekolah': p?.nama_sekolah || '',
+      'Nama Peserta': p?.nama_peserta || '',
+      'Tempat Tgl Lahir': p?.tempat_tanggal_lahir || '',
+      'Cabang Lomba': p?.cabang_lomba || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -521,19 +532,23 @@ export default function App() {
     return 'other';
   };
 
-  const CountdownItem = ({ value, label }: { value: number, label: string }) => (
-    <div className="flex flex-col items-center px-2 md:px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-indigo-100 shadow-sm min-w-[60px] md:min-w-[80px]">
-      <span className="text-xl md:text-2xl font-black text-indigo-900 leading-none">
-        {value.toString().padStart(2, '0')}
-      </span>
-      <span className="text-[8px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-wider mt-1">
-        {label}
-      </span>
-    </div>
-  );
+  const CountdownItem = ({ value, label }: { value: number, label: string }) => {
+    const safeValue = isNaN(value) ? 0 : value;
+    return (
+      <div className="flex flex-col items-center px-2 md:px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-indigo-100 shadow-sm min-w-[60px] md:min-w-[80px]">
+        <span className="text-xl md:text-2xl font-black text-indigo-900 leading-none">
+          {safeValue.toString().padStart(2, '0')}
+        </span>
+        <span className="text-[8px] md:text-[10px] font-bold text-indigo-400 uppercase tracking-wider mt-1">
+          {label}
+        </span>
+      </div>
+    );
+  };
 
   const ParticipantsTable = ({ showCSV = false }: { showCSV?: boolean }) => {
-    const schools = ['Semua Sekolah', ...new Set(participants.map(p => p.nama_sekolah))].sort();
+    const safeParticipants = Array.isArray(participants) ? participants : [];
+    const schools = ['Semua Sekolah', ...new Set(safeParticipants.map(p => p?.nama_sekolah || ''))].filter(Boolean).sort();
 
     return (
       <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
@@ -542,7 +557,7 @@ export default function App() {
             <div className="flex items-center gap-3 mr-2">
               <h3 className="font-bold text-lg md:text-xl">Daftar Peserta</h3>
               <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] md:text-xs font-black border border-indigo-100">
-                {participants.length} Total
+                {safeParticipants.length} Total
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -696,9 +711,14 @@ export default function App() {
   };
 
   const filteredParticipants = Array.isArray(participants) ? participants.filter(p => {
-    const matchesSearch = p.nama_peserta.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         p.cabang_lomba.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSchool = schoolFilter === 'Semua Sekolah' || p.nama_sekolah === schoolFilter;
+    if (!p) return false;
+    const namaPeserta = p.nama_peserta || '';
+    const cabangLomba = p.cabang_lomba || '';
+    const namaSekolah = p.nama_sekolah || '';
+    
+    const matchesSearch = namaPeserta.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         cabangLomba.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSchool = schoolFilter === 'Semua Sekolah' || namaSekolah === schoolFilter;
     return matchesSearch && matchesSchool;
   }) : [];
 
@@ -899,7 +919,7 @@ export default function App() {
                     </div>
                     <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 w-fit">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total</span>
-                      <span className="text-lg md:text-xl font-black text-slate-900">{participants.length} Peserta</span>
+                      <span className="text-lg md:text-xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0} Peserta</span>
                     </div>
                   </div>
                 </div>
@@ -1160,11 +1180,11 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total Peserta</p>
-                  <p className="text-3xl font-black text-slate-900">{participants.length}</p>
+                  <p className="text-3xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0}</p>
                 </div>
                 <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Sekolah</p>
-                  <p className="text-3xl font-black text-slate-900">{new Set(participants.map(p => p.nama_sekolah)).size}</p>
+                  <p className="text-3xl font-black text-slate-900">{new Set((Array.isArray(participants) ? participants : []).map(p => p?.nama_sekolah || '')).size}</p>
                 </div>
               </div>
 
