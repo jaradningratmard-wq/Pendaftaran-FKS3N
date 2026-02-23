@@ -102,8 +102,8 @@ export default function App() {
 
   const [formData, setFormData] = useState({
     nama_sekolah: '',
-    nama_peserta: '',
-    tempat_tanggal_lahir: '',
+    nama_peserta: [''],
+    tempat_tanggal_lahir: [''],
     cabang_lomba: '',
     file_url: '',
     file_name: ''
@@ -124,6 +124,34 @@ export default function App() {
     } catch (error) {
       console.error('Error fetching DB status:', error);
     }
+  };
+
+  const getParticipantCount = (cabang: string) => {
+    if (cabang === 'Pantomim') return 2;
+    if (cabang === 'Seni Tari') return 3;
+    return 1;
+  };
+
+  const handleCabangChange = (val: string) => {
+    const count = getParticipantCount(val);
+    setFormData(prev => {
+      let newNames = [...prev.nama_peserta];
+      let newTtls = [...prev.tempat_tanggal_lahir];
+      
+      if (newNames.length < count) {
+        while (newNames.length < count) newNames.push('');
+      } else {
+        newNames = newNames.slice(0, count);
+      }
+
+      if (newTtls.length < count) {
+        while (newTtls.length < count) newTtls.push('');
+      } else {
+        newTtls = newTtls.slice(0, count);
+      }
+
+      return { ...prev, cabang_lomba: val, nama_peserta: newNames, tempat_tanggal_lahir: newTtls };
+    });
   };
 
   const fetchParticipants = async () => {
@@ -192,10 +220,16 @@ export default function App() {
       const url = editingId ? `/api/participants/${editingId}` : '/api/participants';
       const method = editingId ? 'PUT' : 'POST';
 
+      const payload = {
+        ...formData,
+        nama_peserta: formData.nama_peserta.join('\n'),
+        tempat_tanggal_lahir: formData.tempat_tanggal_lahir.join('\n')
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -210,8 +244,8 @@ export default function App() {
         // Clear form
         setFormData({
           nama_sekolah: '',
-          nama_peserta: '',
-          tempat_tanggal_lahir: '',
+          nama_peserta: [''],
+          tempat_tanggal_lahir: [''],
           cabang_lomba: '',
           file_url: '',
           file_name: ''
@@ -261,8 +295,8 @@ export default function App() {
   const handleEdit = (participant: Participant) => {
     setFormData({
       nama_sekolah: participant.nama_sekolah,
-      nama_peserta: participant.nama_peserta,
-      tempat_tanggal_lahir: participant.tempat_tanggal_lahir,
+      nama_peserta: participant.nama_peserta.split('\n'),
+      tempat_tanggal_lahir: participant.tempat_tanggal_lahir.split('\n'),
       cabang_lomba: participant.cabang_lomba,
       file_url: participant.file_url || '',
       file_name: participant.file_name || ''
@@ -442,6 +476,7 @@ export default function App() {
                 <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Tempat Tgl Lahir</th>
                 <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Cabang Lomba</th>
                 <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Berkas</th>
+                {isAdmin && <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -469,9 +504,13 @@ export default function App() {
                       </span>
                     </td>
                     <td className="px-6 md:px-8 py-4 md:py-5">
-                      <p className="text-xs md:text-sm font-bold text-slate-900 whitespace-nowrap">{participant.nama_peserta}</p>
+                      <div className="text-xs md:text-sm font-bold text-slate-900 whitespace-pre-line">
+                        {participant.nama_peserta}
+                      </div>
                     </td>
-                    <td className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-sm text-slate-500 whitespace-nowrap">{participant.tempat_tanggal_lahir}</td>
+                    <td className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-sm text-slate-500 whitespace-pre-line">
+                      {participant.tempat_tanggal_lahir}
+                    </td>
                     <td className="px-6 md:px-8 py-4 md:py-5">
                       <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold bg-indigo-50 text-indigo-700 whitespace-nowrap">
                         {participant.cabang_lomba}
@@ -493,6 +532,26 @@ export default function App() {
                         )}
                       </div>
                     </td>
+                    {isAdmin && (
+                      <td className="px-6 md:px-8 py-4 md:py-5">
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleEdit(participant)}
+                            className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-amber-500 hover:text-white transition-all"
+                            title="Edit Data"
+                          >
+                            <Edit size={14} className="md:w-4 md:h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(participant.id)}
+                            className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-500 hover:text-white transition-all"
+                            title="Hapus Data"
+                          >
+                            <Trash2 size={14} className="md:w-4 md:h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -539,8 +598,15 @@ export default function App() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-12">
           <div className="flex items-center gap-4">
             <div 
-              onClick={() => { if (isAdmin) setView('home'); setEditingId(null); }}
-              className={`w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 transition-transform ${isAdmin ? 'cursor-pointer active:scale-95' : ''}`}
+              onClick={() => { 
+                if (isAdmin) {
+                  setView('home'); 
+                  setEditingId(null); 
+                } else {
+                  setShowLoginModal(true);
+                }
+              }}
+              className="w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 transition-transform cursor-pointer active:scale-95"
             >
               <Trophy size={24} className="md:w-7 md:h-7" />
             </div>
@@ -551,7 +617,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            {isAdmin ? (
+            {isAdmin && (
               <>
                 {view !== 'home' && (
                   <button 
@@ -570,14 +636,6 @@ export default function App() {
                   <span>Logout</span>
                 </button>
               </>
-            ) : (
-              <button 
-                onClick={() => setShowLoginModal(true)}
-                className="flex items-center justify-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 text-xs md:text-sm font-semibold hover:bg-indigo-100 transition-colors shadow-sm active:scale-95"
-              >
-                <Lock size={16} className="md:w-[18px] md:h-[18px]" />
-                <span>Login Admin</span>
-              </button>
             )}
           </div>
         </header>
@@ -624,9 +682,6 @@ export default function App() {
                     <LogIn size={20} />
                     <span>Masuk</span>
                   </button>
-                  <p className="text-center text-slate-400 text-xs font-medium italic">
-                    Gunakan password: admin123
-                  </p>
                 </form>
               </motion.div>
             </motion.div>
@@ -740,36 +795,6 @@ export default function App() {
 
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <UserPlus size={16} className="text-indigo-500" />
-                        Nama Peserta
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="Contoh: Budi Santoso"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                        value={formData.nama_peserta}
-                        onChange={(e) => setFormData({...formData, nama_peserta: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <IdCard size={16} className="text-indigo-500" />
-                        Tempat Tanggal Lahir
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="Contoh: Pasuruan, 12 Mei 2014"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                        value={formData.tempat_tanggal_lahir}
-                        onChange={(e) => setFormData({...formData, tempat_tanggal_lahir: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <Trophy size={16} className="text-indigo-500" />
                         Cabang Lomba
                       </label>
@@ -777,12 +802,55 @@ export default function App() {
                         required
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all appearance-none bg-white"
                         value={formData.cabang_lomba}
-                        onChange={(e) => setFormData({...formData, cabang_lomba: e.target.value})}
+                        onChange={(e) => handleCabangChange(e.target.value)}
                       >
                         <option value="">Pilih Cabang Lomba</option>
                         {CABANG_LOMBA.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+
+                    {formData.nama_peserta.map((_, index) => (
+                      <React.Fragment key={index}>
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <UserPlus size={16} className="text-indigo-500" />
+                            Nama Peserta {formData.nama_peserta.length > 1 ? index + 1 : ''}
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            placeholder="Contoh: Budi Santoso"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                            value={formData.nama_peserta[index]}
+                            onChange={(e) => {
+                              const newNames = [...formData.nama_peserta];
+                              newNames[index] = e.target.value;
+                              setFormData({...formData, nama_peserta: newNames});
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <IdCard size={16} className="text-indigo-500" />
+                            Tempat Tanggal Lahir {formData.tempat_tanggal_lahir.length > 1 ? index + 1 : ''}
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            placeholder="Contoh: Pasuruan, 12 Mei 2014"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                            value={formData.tempat_tanggal_lahir[index]}
+                            onChange={(e) => {
+                              const newTtls = [...formData.tempat_tanggal_lahir];
+                              newTtls[index] = e.target.value;
+                              setFormData({...formData, tempat_tanggal_lahir: newTtls});
+                            }}
+                          />
+                        </div>
+                      </React.Fragment>
+                    ))}
+
                   </div>
 
                   {showFileUpload && (
