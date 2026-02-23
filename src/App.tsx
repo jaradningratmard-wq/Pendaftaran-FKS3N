@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { createClient } from '@supabase/supabase-js';
 import { 
   UserPlus, 
   Users, 
@@ -86,6 +87,11 @@ const SEKOLAH_LIST = [
   "SD ISLAM AZ ZAHRA",
   "SD ISLAM DARUSSALAM"
 ];
+
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseClient = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -179,12 +185,22 @@ export default function App() {
   const fetchParticipants = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/participants');
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setParticipants(data);
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient
+          .from('participants')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        setParticipants(data || []);
       } else {
-        setParticipants([]);
+        const response = await fetch('/api/participants');
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setParticipants(data);
+        } else {
+          setParticipants([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching participants:', error);
@@ -219,33 +235,30 @@ export default function App() {
     setMessage(null);
 
     try {
-      const url = editingId ? `/api/participants/${editingId}` : '/api/participants';
-      const method = editingId ? 'PUT' : 'POST';
-
       const payload = {
-        ...formData,
+        nama_sekolah: formData.nama_sekolah,
         nama_peserta: formData.nama_peserta.join('\n'),
-        tempat_tanggal_lahir: formData.tempat_tanggal_lahir.join('\n')
+        tempat_tanggal_lahir: formData.tempat_tanggal_lahir.join('\n'),
+        cabang_lomba: formData.cabang_lomba,
+        file_url: formData.file_url,
+        file_name: formData.file_name
       };
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      let result;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        result = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("Server returned non-JSON response:", text);
-        throw new Error("Server tidak merespon dengan format yang benar (JSON).");
-      }
-
-      if (response.ok) {
-        console.log("Pendaftaran berhasil disimpan!");
+      if (supabaseClient) {
+        if (editingId) {
+          const { error } = await supabaseClient
+            .from('participants')
+            .update(payload)
+            .eq('id', editingId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabaseClient
+            .from('participants')
+            .insert([payload]);
+          if (error) throw error;
+        }
+        
+        console.log("Pendaftaran berhasil disimpan ke Supabase!");
         setMessage({ 
           type: 'success', 
           text: editingId ? 'Data berhasil diperbarui!' : 'Pendaftaran berhasil disimpan!' 
@@ -261,17 +274,57 @@ export default function App() {
           file_name: ''
         });
         setEditingId(null);
-        
-        // Refresh data
         await fetchParticipants();
-        
-        // Stay on page instead of redirecting
-        setTimeout(() => {
-          setMessage(null);
-        }, 3000);
+        setTimeout(() => setMessage(null), 3000);
       } else {
-        console.error("Gagal menyimpan:", result.error);
-        setMessage({ type: 'error', text: result.error || 'Gagal menyimpan pendaftaran.' });
+        const url = editingId ? `/api/participants/${editingId}` : '/api/participants';
+        const method = editingId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        let result;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          result = await response.json();
+        } else {
+          const text = await response.text();
+          console.error("Server returned non-JSON response:", text);
+          throw new Error("Server tidak merespon dengan format yang benar (JSON).");
+        }
+
+        if (response.ok) {
+          console.log("Pendaftaran berhasil disimpan!");
+          setMessage({ 
+            type: 'success', 
+            text: editingId ? 'Data berhasil diperbarui!' : 'Pendaftaran berhasil disimpan!' 
+          });
+          
+          // Clear form
+          setFormData({
+            nama_sekolah: '',
+            nama_peserta: [''],
+            tempat_tanggal_lahir: [''],
+            cabang_lomba: '',
+            file_url: '',
+            file_name: ''
+          });
+          setEditingId(null);
+          
+          // Refresh data
+          await fetchParticipants();
+          
+          // Stay on page instead of redirecting
+          setTimeout(() => {
+            setMessage(null);
+          }, 3000);
+        } else {
+          console.error("Gagal menyimpan:", result.error);
+          setMessage({ type: 'error', text: result.error || 'Gagal menyimpan pendaftaran.' });
+        }
       }
     } catch (error) {
       console.error("Kesalahan koneksi:", error);
@@ -288,15 +341,27 @@ export default function App() {
     if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
 
     try {
-      const response = await fetch(`/api/participants/${id}`, { method: 'DELETE' });
-      const result = await response.json();
-      
-      if (response.ok) {
+      if (supabaseClient) {
+        const { error } = await supabaseClient
+          .from('participants')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+        
         setMessage({ type: 'success', text: 'Data berhasil dihapus!' });
         fetchParticipants();
         setTimeout(() => setMessage(null), 3000);
       } else {
-        alert('Gagal menghapus data: ' + (result.error || 'Terjadi kesalahan'));
+        const response = await fetch(`/api/participants/${id}`, { method: 'DELETE' });
+        const result = await response.json();
+        
+        if (response.ok) {
+          setMessage({ type: 'success', text: 'Data berhasil dihapus!' });
+          fetchParticipants();
+          setTimeout(() => setMessage(null), 3000);
+        } else {
+          alert('Gagal menghapus data: ' + (result.error || 'Terjadi kesalahan'));
+        }
       }
     } catch (error) {
       console.error('Error deleting:', error);
