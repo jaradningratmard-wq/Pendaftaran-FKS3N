@@ -146,11 +146,21 @@ export default function App() {
 
   const fetchDbStatus = async () => {
     try {
-      const response = await fetch('/api/db-status');
-      const data = await response.json();
-      setDbStatus(data);
+      if (supabaseClient) {
+        setDbStatus({ provider: 'Supabase', connected: true });
+      } else {
+        const response = await fetch('/api/db-status');
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          setDbStatus(data);
+        } else {
+          setDbStatus({ provider: 'None (Netlify)', connected: false });
+        }
+      }
     } catch (error) {
       console.error('Error fetching DB status:', error);
+      setDbStatus({ provider: 'Error', connected: false });
     }
   };
 
@@ -195,10 +205,16 @@ export default function App() {
         setParticipants(data || []);
       } else {
         const response = await fetch('/api/participants');
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setParticipants(data);
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setParticipants(data);
+          } else {
+            setParticipants([]);
+          }
         } else {
+          console.warn("Supabase belum dikonfigurasi. Menampilkan data kosong.");
           setParticipants([]);
         }
       }
@@ -277,6 +293,7 @@ export default function App() {
         await fetchParticipants();
         setTimeout(() => setMessage(null), 3000);
       } else {
+        // Fallback to API if Supabase is not configured (e.g. local dev with SQLite)
         const url = editingId ? `/api/participants/${editingId}` : '/api/participants';
         const method = editingId ? 'PUT' : 'POST';
 
@@ -293,7 +310,7 @@ export default function App() {
         } else {
           const text = await response.text();
           console.error("Server returned non-JSON response:", text);
-          throw new Error("Server tidak merespon dengan format yang benar (JSON).");
+          throw new Error("Koneksi database (Supabase) belum dikonfigurasi dengan benar. Pastikan Anda telah menambahkan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di environment variables Netlify. Jika Anda menggunakan SQLite lokal, pastikan server backend berjalan.");
         }
 
         if (response.ok) {
@@ -353,14 +370,18 @@ export default function App() {
         setTimeout(() => setMessage(null), 3000);
       } else {
         const response = await fetch(`/api/participants/${id}`, { method: 'DELETE' });
-        const result = await response.json();
         
-        if (response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.error || 'Gagal menghapus data');
+          }
           setMessage({ type: 'success', text: 'Data berhasil dihapus!' });
           fetchParticipants();
           setTimeout(() => setMessage(null), 3000);
         } else {
-          alert('Gagal menghapus data: ' + (result.error || 'Terjadi kesalahan'));
+          throw new Error("Koneksi database (Supabase) belum dikonfigurasi dengan benar.");
         }
       }
     } catch (error) {
