@@ -28,6 +28,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  ArrowRight,
   Link as LinkIcon
 } from 'lucide-react';
 
@@ -103,6 +104,179 @@ try {
   console.error("Failed to initialize Supabase client:", error);
 }
 
+interface ParticipantsTableProps {
+  participants: Participant[];
+  filteredParticipants: Participant[];
+  schoolFilter: string;
+  setSchoolFilter: (school: string) => void;
+  downloadPDF: () => void;
+  downloadCSV: () => void;
+  isAdmin: boolean;
+  handleDelete: (id: any) => void;
+  handleEdit: (participant: Participant) => void;
+  loading: boolean;
+  showCSV?: boolean;
+}
+
+const ParticipantsTable = ({ 
+  participants, 
+  filteredParticipants, 
+  schoolFilter, 
+  setSchoolFilter, 
+  downloadPDF, 
+  downloadCSV, 
+  isAdmin, 
+  handleDelete, 
+  handleEdit, 
+  loading,
+  showCSV = false 
+}: ParticipantsTableProps) => {
+  const safeParticipants = Array.isArray(participants) ? participants : [];
+  const schools = ['Semua Sekolah', ...SEKOLAH_LIST];
+
+  return (
+    <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+      <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 bg-slate-50/50">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 mr-2">
+            <h3 className="font-bold text-lg md:text-xl">Daftar Peserta</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={downloadPDF}
+              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-rose-600 text-white text-[10px] md:text-xs font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 active:scale-95"
+            >
+              <FileText size={14} className="md:w-4 md:h-4" />
+              <span>Cetak Kartu Pendaftaran</span>
+            </button>
+            {showCSV && (
+                <button 
+                  onClick={downloadCSV}
+                  className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] md:text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+                >
+                  <FileSpreadsheet size={14} className="md:w-4 md:h-4" />
+                  <span>Unduh CSV</span>
+                </button>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3 flex-1 md:max-w-md">
+          <div className="relative flex-1">
+            <School className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <select
+              value={schoolFilter}
+              onChange={(e) => setSchoolFilter(e.target.value)}
+              className="pl-10 pr-4 py-2 md:py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 outline-none w-full text-xs md:text-sm appearance-none bg-white"
+            >
+              {schools.map(school => (
+                <option key={school} value={school}>{school}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="md:hidden flex items-center justify-end gap-1 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+        <span>Geser Horizontal</span>
+        <ArrowRight size={12} />
+      </div>
+
+      <div className="overflow-x-auto pb-4">
+        <table className="w-full text-left border-collapse min-w-[800px]">
+          <thead>
+            <tr className="bg-slate-50/30">
+              <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nama Sekolah</th>
+              <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nama Peserta</th>
+              <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Tempat Tgl Lahir</th>
+              <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Cabang Lomba</th>
+              <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Berkas</th>
+              {isAdmin && <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Aksi</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? (
+              <tr>
+                <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3 text-slate-400">
+                    <Loader2 className="animate-spin" size={32} />
+                    <span className="text-xs md:text-sm font-bold uppercase tracking-widest">Memuat data...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredParticipants.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center text-slate-400">
+                  <p className="text-xs md:text-sm font-bold uppercase tracking-widest">Tidak ada data ditemukan</p>
+                </td>
+              </tr>
+            ) : (
+              filteredParticipants.map((participant) => (
+                <tr key={participant.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold bg-slate-100 text-slate-700 whitespace-nowrap">
+                      {participant.nama_sekolah}
+                    </span>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <div className="text-xs md:text-sm font-bold text-slate-900 whitespace-pre-line">
+                      {participant.nama_peserta}
+                    </div>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-sm text-slate-500 whitespace-pre-line">
+                    {participant.tempat_tanggal_lahir}
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold bg-indigo-50 text-indigo-700 whitespace-nowrap">
+                      {participant.cabang_lomba}
+                    </span>
+                  </td>
+                  <td className="px-6 md:px-8 py-4 md:py-5">
+                    <div className="flex items-center justify-center gap-2">
+                      {participant.file_url ? (
+                        <a 
+                          href={participant.file_url} 
+                          download={participant.file_name}
+                          title="Unduh Berkas"
+                          className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white transition-all"
+                        >
+                          <Download size={14} className="md:w-4 md:h-4" />
+                        </a>
+                      ) : (
+                        <span className="text-slate-300 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">Tidak ada</span>
+                      )}
+                    </div>
+                  </td>
+                  {isAdmin && (
+                    <td className="px-6 md:px-8 py-4 md:py-5">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => handleEdit(participant)}
+                          className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-amber-500 hover:text-white transition-all"
+                          title="Edit Data"
+                        >
+                          <Edit size={14} className="md:w-4 md:h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(participant.id)}
+                          className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-500 hover:text-white transition-all"
+                          title="Hapus Data"
+                        >
+                          <Trash2 size={14} className="md:w-4 md:h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -113,7 +287,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('Semua Sekolah');
   const [editingId, setEditingId] = useState<any>(null);
   const [dbStatus, setDbStatus] = useState<{ provider: string, connected: boolean } | null>(null);
@@ -539,160 +712,7 @@ export default function App() {
     );
   };
 
-  const ParticipantsTable = ({ showCSV = false }: { showCSV?: boolean }) => {
-    const safeParticipants = Array.isArray(participants) ? participants : [];
-    const schools = ['Semua Sekolah', ...new Set(safeParticipants.map(p => p?.nama_sekolah || ''))].filter(Boolean).sort();
 
-    return (
-      <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-        <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 bg-slate-50/50">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3 mr-2">
-              <h3 className="font-bold text-lg md:text-xl">Daftar Peserta</h3>
-              <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] md:text-xs font-black border border-indigo-100">
-                {safeParticipants.length} Total
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={downloadPDF}
-                className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-rose-600 text-white text-[10px] md:text-xs font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 active:scale-95"
-              >
-                <FileText size={14} className="md:w-4 md:h-4" />
-                <span>Cetak Kartu Pendaftaran</span>
-              </button>
-              {showCSV && (
-                  <button 
-                    onClick={downloadCSV}
-                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] md:text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
-                  >
-                    <FileSpreadsheet size={14} className="md:w-4 md:h-4" />
-                    <span>Unduh CSV</span>
-                  </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3 flex-1 md:max-w-2xl">
-            <div className="relative flex-1">
-              <School className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <select
-                value={schoolFilter}
-                onChange={(e) => setSchoolFilter(e.target.value)}
-                className="pl-10 pr-4 py-2 md:py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 outline-none w-full text-xs md:text-sm appearance-none bg-white"
-              >
-                {schools.map(school => (
-                  <option key={school} value={school}>{school}</option>
-                ))}
-              </select>
-            </div>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
-                type="text" 
-                placeholder="Cari nama atau lomba..."
-                className="pl-10 pr-4 py-2 md:py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 outline-none w-full text-xs md:text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto scrollbar-hide">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead>
-              <tr className="bg-slate-50/30">
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nama Sekolah</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Nama Peserta</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Tempat Tgl Lahir</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Cabang Lomba</th>
-                <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Berkas</th>
-                {isAdmin && <th className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3 text-slate-400">
-                      <Loader2 className="animate-spin" size={32} />
-                      <span className="text-xs md:text-sm font-bold uppercase tracking-widest">Memuat data...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredParticipants.length === 0 ? (
-                <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center text-slate-400">
-                    <p className="text-xs md:text-sm font-bold uppercase tracking-widest">Tidak ada data ditemukan</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredParticipants.map((participant) => (
-                  <tr key={participant.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 md:px-8 py-4 md:py-5">
-                      <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold bg-slate-100 text-slate-700 whitespace-nowrap">
-                        {participant.nama_sekolah}
-                      </span>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-5">
-                      <div className="text-xs md:text-sm font-bold text-slate-900 whitespace-pre-line">
-                        {participant.nama_peserta}
-                      </div>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-5 text-[10px] md:text-sm text-slate-500 whitespace-pre-line">
-                      {participant.tempat_tanggal_lahir}
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-5">
-                      <span className="inline-flex items-center px-2 md:px-3 py-1 rounded-lg text-[10px] md:text-xs font-bold bg-indigo-50 text-indigo-700 whitespace-nowrap">
-                        {participant.cabang_lomba}
-                      </span>
-                    </td>
-                    <td className="px-6 md:px-8 py-4 md:py-5">
-                      <div className="flex items-center justify-center gap-2">
-                        {participant.file_url ? (
-                          <a 
-                            href={participant.file_url} 
-                            download={participant.file_name}
-                            title="Unduh Berkas"
-                            className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-indigo-600 hover:text-white transition-all"
-                          >
-                            <Download size={14} className="md:w-4 md:h-4" />
-                          </a>
-                        ) : (
-                          <span className="text-slate-300 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">Tidak ada</span>
-                        )}
-                      </div>
-                    </td>
-                    {isAdmin && (
-                      <td className="px-6 md:px-8 py-4 md:py-5">
-                        <div className="flex items-center justify-center gap-2">
-                          <button 
-                            onClick={() => handleEdit(participant)}
-                            className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-amber-500 hover:text-white transition-all"
-                            title="Edit Data"
-                          >
-                            <Edit size={14} className="md:w-4 md:h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(participant.id)}
-                            className="p-1.5 md:p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-500 hover:text-white transition-all"
-                            title="Hapus Data"
-                          >
-                            <Trash2 size={14} className="md:w-4 md:h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
 
   const filteredParticipants = Array.isArray(participants) ? participants.filter(p => {
     if (!p) return false;
@@ -700,10 +720,8 @@ export default function App() {
     const cabangLomba = p.cabang_lomba || '';
     const namaSekolah = p.nama_sekolah || '';
     
-    const matchesSearch = namaPeserta.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         cabangLomba.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSchool = schoolFilter === 'Semua Sekolah' || namaSekolah === schoolFilter;
-    return matchesSearch && matchesSchool;
+    return matchesSchool;
   }) : [];
 
   const showFileUpload = ['Menyanyi Solo', 'Pantomim', 'Seni Tari'].includes(formData.cabang_lomba);
@@ -921,13 +939,23 @@ export default function App() {
             >
               {/* Stats Cards */}
               <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total Peserta</p>
-                  <p className="text-3xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0}</p>
+                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-1">Total Peserta</p>
+                    <p className="text-2xl md:text-3xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0}</p>
+                  </div>
+                  <div className="bg-indigo-50 p-3 rounded-2xl">
+                    <Users className="text-indigo-600" size={24} />
+                  </div>
                 </div>
-                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Sekolah</p>
-                  <p className="text-3xl font-black text-slate-900">{new Set((Array.isArray(participants) ? participants : []).map(p => p?.nama_sekolah || '')).size}</p>
+                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-1">Sekolah</p>
+                    <p className="text-2xl md:text-3xl font-black text-slate-900">{new Set((Array.isArray(participants) ? participants : []).map(p => p?.nama_sekolah || '')).size}</p>
+                  </div>
+                  <div className="bg-amber-50 p-3 rounded-2xl">
+                    <School className="text-amber-600" size={24} />
+                  </div>
                 </div>
               </div>
 
@@ -1159,7 +1187,19 @@ export default function App() {
 
               {/* Table below form */}
               <div className="mt-12">
-                <ParticipantsTable showCSV={isAdmin} />
+                <ParticipantsTable 
+                  participants={participants}
+                  filteredParticipants={filteredParticipants}
+                  schoolFilter={schoolFilter}
+                  setSchoolFilter={setSchoolFilter}
+                  downloadPDF={downloadPDF}
+                  downloadCSV={downloadCSV}
+                  isAdmin={isAdmin}
+                  handleDelete={handleDelete}
+                  handleEdit={handleEdit}
+                  loading={loading}
+                  showCSV={isAdmin} 
+                />
               </div>
             </motion.div>
           )}
@@ -1173,7 +1213,19 @@ export default function App() {
               className="space-y-8"
             >
               {/* Table Section */}
-              <ParticipantsTable showCSV={isAdmin} />
+              <ParticipantsTable 
+                participants={participants}
+                filteredParticipants={filteredParticipants}
+                schoolFilter={schoolFilter}
+                setSchoolFilter={setSchoolFilter}
+                downloadPDF={downloadPDF}
+                downloadCSV={downloadCSV}
+                isAdmin={isAdmin}
+                handleDelete={handleDelete}
+                handleEdit={handleEdit}
+                loading={loading}
+                showCSV={isAdmin} 
+              />
             </motion.div>
           )}
         </AnimatePresence>
