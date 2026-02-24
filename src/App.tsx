@@ -28,7 +28,6 @@ import {
   Lock,
   LogIn,
   LogOut,
-  Database as DbIcon,
   Link as LinkIcon
 } from 'lucide-react';
 
@@ -176,8 +175,6 @@ export default function App() {
   };
 
   const getParticipantCount = (cabang: string) => {
-    if (cabang === 'Pantomim') return 2;
-    if (cabang === 'Seni Tari') return 3;
     return 1;
   };
 
@@ -497,9 +494,9 @@ export default function App() {
 
   const downloadCSV = () => {
     const dataToExport = filteredParticipants.map((p) => ({
-      'Nama Sekolah': p?.nama_sekolah || '',
-      'Nama Peserta': p?.nama_peserta || '',
-      'Tempat Tgl Lahir': p?.tempat_tanggal_lahir || '',
+      'NamaSekolah': p?.nama_sekolah || '',
+      'NamaPeserta': p?.nama_peserta || '',
+      'TempatTglLahir': p?.tempat_tanggal_lahir || '',
       'Cabang Lomba': p?.cabang_lomba || ''
     }));
 
@@ -515,10 +512,6 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const downloadSQL = () => {
-    window.location.href = '/api/export-sql';
   };
 
   const getUrlType = (url: string) => {
@@ -566,25 +559,16 @@ export default function App() {
                 className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-rose-600 text-white text-[10px] md:text-xs font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 active:scale-95"
               >
                 <FileText size={14} className="md:w-4 md:h-4" />
-                <span>PDF</span>
+                <span>Cetak Kartu Pendaftaran</span>
               </button>
               {showCSV && (
-                <>
                   <button 
                     onClick={downloadCSV}
                     className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] md:text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
                   >
                     <FileSpreadsheet size={14} className="md:w-4 md:h-4" />
-                    <span>CSV</span>
+                    <span>Unduh CSV</span>
                   </button>
-                  <button 
-                    onClick={downloadSQL}
-                    className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-slate-700 text-white text-[10px] md:text-xs font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 active:scale-95"
-                  >
-                    <DbIcon size={14} className="md:w-4 md:h-4" />
-                    <span>SQL</span>
-                  </button>
-                </>
               )}
             </div>
           </div>
@@ -630,7 +614,7 @@ export default function App() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-16 text-center">
+                  <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <Loader2 className="animate-spin" size={32} />
                       <span className="text-xs md:text-sm font-bold uppercase tracking-widest">Memuat data...</span>
@@ -639,7 +623,7 @@ export default function App() {
                 </tr>
               ) : filteredParticipants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-16 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 6 : 5} className="px-8 py-16 text-center text-slate-400">
                     <p className="text-xs md:text-sm font-bold uppercase tracking-widest">Tidak ada data ditemukan</p>
                   </td>
                 </tr>
@@ -935,6 +919,18 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="max-w-3xl mx-auto"
             >
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total Peserta</p>
+                  <p className="text-3xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0}</p>
+                </div>
+                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Sekolah</p>
+                  <p className="text-3xl font-black text-slate-900">{new Set((Array.isArray(participants) ? participants : []).map(p => p?.nama_sekolah || '')).size}</p>
+                </div>
+              </div>
+
               <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
                 <div className="p-8 border-b border-slate-100 bg-slate-50/50">
                   <h2 className="text-2xl font-bold">{editingId ? 'Edit Data Peserta' : 'Formulir Pendaftaran'}</h2>
@@ -1145,8 +1141,8 @@ export default function App() {
                           setEditingId(null);
                           setFormData({
                             nama_sekolah: '',
-                            nama_peserta: '',
-                            tempat_tanggal_lahir: '',
+                            nama_peserta: [''],
+                            tempat_tanggal_lahir: [''],
                             cabang_lomba: '',
                             file_url: '',
                             file_name: ''
@@ -1163,7 +1159,7 @@ export default function App() {
 
               {/* Table below form */}
               <div className="mt-12">
-                <ParticipantsTable />
+                <ParticipantsTable showCSV={isAdmin} />
               </div>
             </motion.div>
           )}
@@ -1176,20 +1172,8 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-8"
             >
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Total Peserta</p>
-                  <p className="text-3xl font-black text-slate-900">{Array.isArray(participants) ? participants.length : 0}</p>
-                </div>
-                <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm">
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Sekolah</p>
-                  <p className="text-3xl font-black text-slate-900">{new Set((Array.isArray(participants) ? participants : []).map(p => p?.nama_sekolah || '')).size}</p>
-                </div>
-              </div>
-
               {/* Table Section */}
-              <ParticipantsTable showCSV={true} />
+              <ParticipantsTable showCSV={isAdmin} />
             </motion.div>
           )}
         </AnimatePresence>

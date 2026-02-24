@@ -11,43 +11,60 @@ const __dirname = path.dirname(__filename);
 // Supabase Configuration
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const useSupabase = supabaseUrl && supabaseKey;
+let useSupabase = false;
+let supabase = null;
 
-const supabase = useSupabase ? createClient(supabaseUrl, supabaseKey) : null;
+if (supabaseUrl && supabaseKey) {
+  if (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://')) {
+    try {
+      supabase = createClient(supabaseUrl, supabaseKey);
+      useSupabase = true;
+    } catch (error) {
+      console.error("Failed to initialize Supabase client:", error);
+    }
+  } else {
+    console.warn("Supabase URL is invalid. It must start with http:// or https://");
+  }
+}
+
 const db = !useSupabase ? new Database("fls3n_beji_2026.db") : null;
 
 // Initialize SQLite if needed
 if (db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS participants (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nama_sekolah TEXT,
-      nama_peserta TEXT,
-      tempat_tanggal_lahir TEXT,
-      cabang_lomba TEXT,
-      file_url TEXT,
-      file_name TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS participants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_sekolah TEXT,
+        nama_peserta TEXT,
+        tempat_tanggal_lahir TEXT,
+        cabang_lomba TEXT,
+        file_url TEXT,
+        file_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Migration: Ensure all columns exist (handles cases where table existed with different schema)
-  const columns = [
-    "nama_sekolah",
-    "nama_peserta",
-    "tempat_tanggal_lahir",
-    "cabang_lomba",
-    "file_url",
-    "file_name"
-  ];
+    // Migration: Ensure all columns exist (handles cases where table existed with different schema)
+    const columns = [
+      "nama_sekolah",
+      "nama_peserta",
+      "tempat_tanggal_lahir",
+      "cabang_lomba",
+      "file_url",
+      "file_name"
+    ];
 
-  for (const col of columns) {
-    try {
-      db.prepare(`ALTER TABLE participants ADD COLUMN ${col} TEXT`).run();
-      console.log(`Migration: Added column ${col}`);
-    } catch (e) {
-      // Column likely already exists, ignore error
+    for (const col of columns) {
+      try {
+        db.prepare(`ALTER TABLE participants ADD COLUMN ${col} TEXT`).run();
+        console.log(`Migration: Added column ${col}`);
+      } catch (e) {
+        // Column likely already exists, ignore error
+      }
     }
+  } catch (error) {
+    console.error("Failed to initialize SQLite database:", error);
   }
 }
 
