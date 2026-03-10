@@ -109,6 +109,8 @@ interface ParticipantsTableProps {
   filteredParticipants: Participant[];
   schoolFilter: string;
   setSchoolFilter: (school: string) => void;
+  cabangFilter: string;
+  setCabangFilter: (cabang: string) => void;
   downloadPDF: () => void;
   downloadCSV: () => void;
   isAdmin: boolean;
@@ -123,6 +125,8 @@ const ParticipantsTable = ({
   filteredParticipants, 
   schoolFilter, 
   setSchoolFilter, 
+  cabangFilter,
+  setCabangFilter,
   downloadPDF, 
   downloadCSV, 
   isAdmin, 
@@ -133,6 +137,7 @@ const ParticipantsTable = ({
 }: ParticipantsTableProps) => {
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const schools = ['Semua Sekolah', ...SEKOLAH_LIST];
+  const cabangs = ['Semua Cabang', ...CABANG_LOMBA];
 
   return (
     <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
@@ -161,7 +166,7 @@ const ParticipantsTable = ({
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3 flex-1 md:max-w-md">
+        <div className="flex flex-col sm:flex-row gap-3 flex-1 md:max-w-xl">
           <div className="relative flex-1">
             <School className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <select
@@ -171,6 +176,18 @@ const ParticipantsTable = ({
             >
               {schools.map(school => (
                 <option key={school} value={school}>{school}</option>
+              ))}
+            </select>
+          </div>
+          <div className="relative flex-1">
+            <Trophy className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <select
+              value={cabangFilter}
+              onChange={(e) => setCabangFilter(e.target.value)}
+              className="pl-10 pr-4 py-2 md:py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 outline-none w-full text-xs md:text-sm appearance-none bg-white"
+            >
+              {cabangs.map(cabang => (
+                <option key={cabang} value={cabang}>{cabang}</option>
               ))}
             </select>
           </div>
@@ -278,6 +295,7 @@ const ParticipantsTable = ({
 };
 
 export default function App() {
+  const isRegistrationClosed = true;
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
@@ -288,6 +306,7 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [schoolFilter, setSchoolFilter] = useState('Semua Sekolah');
+  const [cabangFilter, setCabangFilter] = useState('Semua Cabang');
   const [editingId, setEditingId] = useState<any>(null);
   const [dbStatus, setDbStatus] = useState<{ provider: string, connected: boolean } | null>(null);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -721,7 +740,8 @@ export default function App() {
     const namaSekolah = p.nama_sekolah || '';
     
     const matchesSchool = schoolFilter === 'Semua Sekolah' || namaSekolah === schoolFilter;
-    return matchesSchool;
+    const matchesCabang = cabangFilter === 'Semua Cabang' || cabangLomba === cabangFilter;
+    return matchesSchool && matchesCabang;
   }) : [];
 
   const showFileUpload = ['Menyanyi Solo', 'Pantomim', 'Seni Tari'].includes(formData.cabang_lomba);
@@ -963,6 +983,15 @@ export default function App() {
                 <div className="p-8 border-b border-slate-100 bg-slate-50/50">
                   <h2 className="text-2xl font-bold">{editingId ? 'Edit Data Peserta' : 'Formulir Pendaftaran'}</h2>
                   <p className="text-slate-500">{editingId ? 'Perbarui data peserta dengan benar.' : 'Lengkapi data peserta dengan benar.'}</p>
+                  {isRegistrationClosed && !editingId && (
+                    <div className="mt-6 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+                      <AlertCircle className="text-rose-600 shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <h4 className="font-bold text-rose-800">Pendaftaran Ditutup</h4>
+                        <p className="text-sm text-rose-600 mt-1">Mohon maaf, Formulir Pendaftaran FLS3N saat ini sudah ditutup.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <form onSubmit={handleSubmit} className="p-8 space-y-6">
                   {message && (
@@ -1145,9 +1174,13 @@ export default function App() {
 
                   <div className="pt-4 flex flex-col gap-3">
                     <button
-                      disabled={submitting}
+                      disabled={submitting || (isRegistrationClosed && !editingId)}
                       type="submit"
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className={`w-full font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 ${
+                        isRegistrationClosed && !editingId
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed'
+                      }`}
                     >
                       {submitting ? (
                         <>
@@ -1192,6 +1225,8 @@ export default function App() {
                   filteredParticipants={filteredParticipants}
                   schoolFilter={schoolFilter}
                   setSchoolFilter={setSchoolFilter}
+                  cabangFilter={cabangFilter}
+                  setCabangFilter={setCabangFilter}
                   downloadPDF={downloadPDF}
                   downloadCSV={downloadCSV}
                   isAdmin={isAdmin}
@@ -1218,6 +1253,8 @@ export default function App() {
                 filteredParticipants={filteredParticipants}
                 schoolFilter={schoolFilter}
                 setSchoolFilter={setSchoolFilter}
+                cabangFilter={cabangFilter}
+                setCabangFilter={setCabangFilter}
                 downloadPDF={downloadPDF}
                 downloadCSV={downloadCSV}
                 isAdmin={isAdmin}
